@@ -30,60 +30,104 @@ import qetaa.service.vendor.filters.ValidApp;
 import qetaa.service.vendor.helpers.AccessMap;
 import qetaa.service.vendor.helpers.AppConstants;
 import qetaa.service.vendor.helpers.Helper;
+import qetaa.service.vendor.model.Courier;
 import qetaa.service.vendor.model.Score;
 import qetaa.service.vendor.model.Vendor;
 import qetaa.service.vendor.model.VendorHolder;
 import qetaa.service.vendor.model.VendorJoinRequest;
 import qetaa.service.vendor.model.VendorMake;
+import qetaa.service.vendor.model.VendorRegion;
 import qetaa.service.vendor.model.VendorUser;
 import qetaa.service.vendor.model.VendorUserHolder;
 import qetaa.service.vendor.model.security.AccessToken;
 import qetaa.service.vendor.model.security.WebApp;
 
 @Path("/")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class VendorService {
 	@EJB
 	private DAO dao;
 
-	@Secured 
+	@Secured
 	@GET
 	@Path("/test")
-	@Produces(MediaType.APPLICATION_JSON)
-	@Consumes(MediaType.APPLICATION_JSON)
 	public void app() {
 
 	}
-	
+
+	@SecuredUser
 	@GET
-	@Path("/test1")
-	@Produces(MediaType.APPLICATION_JSON)
-	public String apptest() {
-		return "sompak";
+	@Path("couriers")
+	public Response getCouriers() {
+		try {
+			List<Courier> couriers = dao.get(Courier.class);
+			return Response.status(200).entity(couriers).build();
+		} catch (Exception ex) {
+			return Response.status(500).build();
+		}
+	}
+
+	@SecuredUser
+	@GET
+	@Path("courier/{param}")
+	public Response getCourier(@PathParam(value = "param") int cId) {
+		try {
+			Courier courier = dao.find(Courier.class, cId);
+			return Response.status(200).entity(courier).build();
+		} catch (Exception ex) {
+			return Response.status(500).build();
+		}
+	}
+
+	@SecuredUser
+	@GET
+	@Path("active-couriers/user")
+	public Response getActiveCourriersUser() {
+		try {
+			List<Courier> couriers = dao.getCondition(Courier.class, "internalStatus", 'A');
+			return Response.status(200).entity(couriers).build();
+		} catch (Exception ex) {
+			return Response.status(500).build();
+		}
+	}
+
+	@SecuredUser
+	@POST
+	@Path("courier")
+	public Response createCourier(Courier courier) {
+		try {
+			Courier c = dao.findCondition(Courier.class, "name", courier.getName());
+			if (c != null) {
+				return Response.status(409).build();
+			}
+			dao.persist(courier);
+			return Response.status(201).build();
+		} catch (Exception ex) {
+			return Response.status(500).build();
+		}
 	}
 
 	@SecuredUser
 	@GET
 	@Path("active-vendor/make/{param}")
-	@Produces(MediaType.APPLICATION_JSON)
 	public Response getActiveVendorsByMake(@PathParam(value = "param") int makeId) {
 		try {
 			String jpql = "select b.vendor from VendorMake b where makeId = :value0 and b.vendor.id in ("
 					+ "select c.id from Vendor c where c.status = :value1)";
-			
+
 			List<Vendor> vendors = dao.getJPQLParams(Vendor.class, jpql, makeId, 'A');
-		
+
 			return Response.status(200).entity(vendors).build();
 		} catch (Exception ex) {
 			return Response.status(500).build();
 		}
 
 	}
-	
 
 	@SecuredUser
 	@GET
 	@Path("all-vendors/make/{param}")
-	@Produces(MediaType.APPLICATION_JSON)
 	public Response getAllVendorsByMake(@PathParam(value = "param") int makeId) {
 		try {
 			List<Vendor> vendors = dao.getConditionClassColumn(VendorMake.class, Vendor.class, "vendor", "makeId",
@@ -94,45 +138,40 @@ public class VendorService {
 		}
 
 	}
-	
+
 	@Secured
 	@GET
 	@Path("vendor-user/{param}")
-	@Produces(MediaType.APPLICATION_JSON)
-	public Response getVendorUser(@PathParam(value="param") int vendorUserId) {
+	public Response getVendorUser(@PathParam(value = "param") int vendorUserId) {
 		try {
 			VendorUser vendorUser = dao.find(VendorUser.class, vendorUserId);
 			return Response.status(200).entity(vendorUser).build();
-		}catch(Exception ex){
+		} catch (Exception ex) {
 			return Response.status(500).build();
 		}
 	}
-	
+
 	@SecuredUser
 	@GET
 	@Path("vendor/{param}")
-	@Produces(MediaType.APPLICATION_JSON)
-	public Response getVendor(@PathParam(value="param") int vendorId) {
+	public Response getVendor(@PathParam(value = "param") int vendorId) {
 		try {
 			Vendor vendor = dao.find(Vendor.class, vendorId);
 			return Response.status(200).entity(vendor).build();
-		}
-		catch(Exception ex) {
+		} catch (Exception ex) {
 			return Response.status(500).build();
 		}
-		
+
 	}
 
 	@SecuredUser
 	@GET
 	@Path("all-vendors")
-	@Produces(MediaType.APPLICATION_JSON)
-	@Consumes(MediaType.APPLICATION_JSON)
 	public Response getAllVendors() {
 		try {
 			List<Vendor> vendors = dao.getOrderBy(Vendor.class, "name");
 			List<VendorHolder> holders = new ArrayList<>();
-			for (Vendor vendor : vendors) { 
+			for (Vendor vendor : vendors) {
 				VendorHolder holder = new VendorHolder();
 				holder.setVendor(vendor);
 				List<VendorUser> users = dao.getCondition(VendorUser.class, "vendor", vendor);
@@ -154,15 +193,14 @@ public class VendorService {
 	@ValidApp
 	@POST
 	@Path("/login")
-	@Produces(MediaType.APPLICATION_JSON)
-	@Consumes(MediaType.APPLICATION_JSON)
 	public Response login(AccessMap map) {
 		try {
 			// verify web app and get it
 			WebApp webApp = getWebAppFromSecret(map.getAppSecret());
 			// get password
 			String hashed = Helper.cypher(map.getCode());
-			VendorUser vendorUser = dao.findThreeConditions(VendorUser.class, "status", "username", "password", 'A', map.getUsername(), hashed);
+			VendorUser vendorUser = dao.findThreeConditions(VendorUser.class, "status", "username", "password", 'A',
+					map.getUsername(), hashed);
 			if (vendorUser != null) {
 				String token = issueToken(vendorUser, webApp, 500);
 				VendorUserHolder holder = new VendorUserHolder();
@@ -181,8 +219,6 @@ public class VendorService {
 	@SecuredUser
 	@PUT
 	@Path("vendor")
-	@Produces(MediaType.APPLICATION_JSON)
-	@Consumes(MediaType.APPLICATION_JSON)
 	public Response updateVendor(VendorHolder vendorHolder) {
 		try {
 			dao.update(vendorHolder.getVendor());
@@ -192,11 +228,10 @@ public class VendorService {
 		}
 	}
 
-	//idempotant
+	// idempotant
 	@SecuredUser
 	@POST
 	@Path("vendor")
-	@Consumes(MediaType.APPLICATION_JSON)
 	public Response createVendor(VendorHolder vendorHolder) {
 		try {
 			List<Vendor> vendors = dao.getCondition(Vendor.class, "name", vendorHolder.getVendor().getName());
@@ -215,65 +250,53 @@ public class VendorService {
 	@SecuredUser
 	@POST
 	@Path("/vendor-score/best-quotation")
-	@Produces(MediaType.APPLICATION_JSON)
-	@Consumes(MediaType.APPLICATION_JSON)
-	public Response createBestQuotationVendorScore(Map<String, Long> map){
-		try{
+	public Response createBestQuotationVendorScore(Map<String, Long> map) {
+		try {
 			doUpdateScore(map, 10, "Best Quotation");
 			return Response.status(200).build();
-		}
-		catch(Exception ex){
+		} catch (Exception ex) {
 			return Response.status(500).build();
 		}
 	}
-	
+
 	@SecuredUser
 	@POST
 	@Path("/vendor-score/second-quotation")
-	@Produces(MediaType.APPLICATION_JSON)
-	@Consumes(MediaType.APPLICATION_JSON)
-	public Response createSecondQuotationVendorScore(Map<String, Long> map){
-		try{
+	public Response createSecondQuotationVendorScore(Map<String, Long> map) {
+		try {
 			doUpdateScore(map, 5, "Second Best Quotation");
 			return Response.status(200).build();
-		}
-		catch(Exception ex){
+		} catch (Exception ex) {
 			return Response.status(500).build();
 		}
 	}
-	
+
 	@SecuredUser
 	@POST
 	@Path("/vendor-score/first-quotation")
-	@Produces(MediaType.APPLICATION_JSON)
-	@Consumes(MediaType.APPLICATION_JSON)
-	public Response createFirstQuotationVendorScore(Map<String, Long> map){
-		try{
+	public Response createFirstQuotationVendorScore(Map<String, Long> map) {
+		try {
 			doUpdateScore(map, 2, "First Arrived Quotation");
 			return Response.status(200).build();
-		}
-		catch(Exception ex){
+		} catch (Exception ex) {
 			ex.printStackTrace();
 			return Response.status(500).build();
 		}
 	}
-	
+
 	@SecuredUser
 	@POST
 	@Path("/vendor-score/incomplete-quotation")
-	@Produces(MediaType.APPLICATION_JSON)
-	@Consumes(MediaType.APPLICATION_JSON)
-	public Response createIncompleteQuotationVendorScore(Map<String, Long> map){
-		try{
+	public Response createIncompleteQuotationVendorScore(Map<String, Long> map) {
+		try {
 			doUpdateScore(map, -10, "Incomplete Quotation");
 			return Response.status(200).build();
-		}
-		catch(Exception ex){
+		} catch (Exception ex) {
 			return Response.status(500).build();
 		}
 	}
-	
-	private void doUpdateScore(Map<String, Long> map, int score, String sourceName) throws Exception{
+
+	private void doUpdateScore(Map<String, Long> map, int score, String sourceName) throws Exception {
 		int makeId = map.get("makeId").intValue();
 		Vendor vendor = dao.getReference(Vendor.class, map.get("vendorId").intValue());
 		long entityId = map.get("entityId");
@@ -288,18 +311,14 @@ public class VendorService {
 		score.setMakeId(makeId);
 		score.setScore(1);
 		score.setSource("Newly Joined");
-		score.setDate(new Date());		
-		dao.persist(score);		
+		score.setDate(new Date());
+		dao.persist(score);
 	}
-	
-	
 
-	//idempotent
+	// idempotent
 	@SecuredUser
 	@POST
 	@Path("vendor-user")
-	@Produces(MediaType.APPLICATION_JSON)
-	@Consumes(MediaType.APPLICATION_JSON)
 	public Response createVendorUser(VendorUser vendorUser) {
 		try {
 			List<VendorUser> users = dao.getTwoConditions(VendorUser.class, "username", "vendor.id",
@@ -321,8 +340,6 @@ public class VendorService {
 	@SecuredUser
 	@POST
 	@Path("/update-vendor-user")
-	@Produces(MediaType.APPLICATION_JSON)
-	@Consumes(MediaType.APPLICATION_JSON)
 	public Response updateVendorUser(VendorUser vendorUser) {
 		try {
 			dao.update(vendorUser);
@@ -332,20 +349,69 @@ public class VendorService {
 		}
 
 	}
+	
+	@SecuredUser
+	@GET
+	@Path("vendors/region/{param}")
+	public Response getRegionsVendors(@PathParam(value="param") int regionId) {
+		try {
+			String jpql = "select b.vendor from VendorRegion b where b.regionId = :value0 order by b.vendor.id";
+			List<Vendor> vendors = dao.getJPQLParams(Vendor.class, jpql, regionId);
+			return Response.status(200).entity(vendors).build();
+		}catch(Exception ex) {
+			return Response.status(500).build();
+		}
+	}
+
+	@SecuredUser
+	@GET
+	@Path("regions-vendors")
+	public Response getRegionsVendors() {
+		try {
+			List<VendorRegion> rvds = dao.get(VendorRegion.class);
+			return Response.status(200).entity(rvds).build();
+		} catch (Exception ex) {
+			return Response.status(500).build();
+		}
+	}
+
+	@SecuredUser
+	@POST
+	@Path("vendor-region")
+	public Response addVendorRegion(VendorRegion vr) {
+		try {
+			List<VendorRegion> vrds = dao.getTwoConditions(VendorRegion.class, "vendor", "regionId",
+					vr.getVendor(), vr.getRegionId());
+			if (!vrds.isEmpty()) {
+				return Response.status(409).build();
+			}
+			Helper h = new Helper();
+			String sql = "insert into vnd_region_vendor_default (vendor_id, region_id, created, created_by)" + "values("
+					+ vr.getVendor().getId() + "," + vr.getRegionId() + ",'" + h.getDateFormat(new Date()) + "',"
+					+ vr.getCreatedBy() + ")";
+			dao.insertNative(sql);
+			return Response.status(201).build();
+		} catch (Exception ex) {
+			ex.printStackTrace();
+			return Response.status(500).build();
+		}
+	}
 
 	@SecuredUser
 	@POST
 	@Path("vendor-make")
-	@Consumes(MediaType.APPLICATION_JSON)
 	public Response addVendorMake(VendorMake vendorMake) {
 		try {
-			List<VendorMake> vendorMakes = dao.getTwoConditions(VendorMake.class, "vendor", "makeId", vendorMake.getVendor(), vendorMake.getMakeId());
-			if(!vendorMakes.isEmpty()) {
+			List<VendorMake> vendorMakes = dao.getTwoConditions(VendorMake.class, "vendor", "makeId",
+					vendorMake.getVendor(), vendorMake.getMakeId());
+			if (!vendorMakes.isEmpty()) {
 				return Response.status(409).build();
 			}
 			Helper h = new Helper();
 			String sql = "insert into vnd_vendor_make (vendor_id, make_id, sales_percentage, created, created_by)"
-					+ "values("+vendorMake.getVendor().getId()+","+vendorMake.getMakeId()+","+vendorMake.getPercentage()+",'"+h.getDateFormat(new Date())+"',"+vendorMake.getCreatedBy()+")";
+					+ "values(" + vendorMake.getVendor().getId() + "," + vendorMake.getMakeId() + ","
+					+ vendorMake.getPercentage() + ",'" + h.getDateFormat(new Date()) + "'," + vendorMake.getCreatedBy()
+					+ ")";
 			dao.insertNative(sql);
 			createNewVendorScore(vendorMake.getVendor().getId(), vendorMake.getMakeId());
 			return Response.status(200).build();
@@ -358,7 +424,8 @@ public class VendorService {
 	@GET
 	@Path("vendor-percentage/vendor/{param}/make/{param2}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getVendorPercentage(@PathParam(value = "param") int vendorId, @PathParam(value = "param2") int makeId) {
+	public Response getVendorPercentage(@PathParam(value = "param") int vendorId,
+			@PathParam(value = "param2") int makeId) {
 		try {
 			List<VendorMake> vms = dao.getTwoConditions(VendorMake.class, "vendor.id", "makeId", vendorId, makeId);
 			if (vms.isEmpty()) {
@@ -374,11 +441,12 @@ public class VendorService {
 	@DELETE
 	@Path("vendor-make/vendor/{param}/make/{param2}")
 	@Consumes(MediaType.APPLICATION_JSON)
-	public Response removeVendorMake(@PathParam(value="param") int vendorId, @PathParam(value="param2") int makeId) {
+	public Response removeVendorMake(@PathParam(value = "param") int vendorId,
+			@PathParam(value = "param2") int makeId) {
 		try {
 			String sql = "delete from vnd_vendor_make where vendor_id = " + vendorId + " and make_id = " + makeId;
 			dao.updateNative(sql);
-			//log the delete operation
+			// log the delete operation
 			return Response.status(200).build();
 		} catch (Exception ex) {
 			return Response.status(500).build();
@@ -389,21 +457,21 @@ public class VendorService {
 	@GET
 	@Path("unselected-makes/vendor/{param}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getUnselectedMakes(@HeaderParam("Authorization") String authHeader, @PathParam(value = "param") int vendorId) {
+	public Response getUnselectedMakes(@HeaderParam("Authorization") String authHeader,
+			@PathParam(value = "param") int vendorId) {
 		try {
-			//get distinct make ids for this vendor
+			// get distinct make ids for this vendor
 			String sql = "select distinct * from vnd_vendor_make where vendor_id = " + vendorId;
 			List<VendorMake> vendorMakes = dao.getNative(VendorMake.class, sql);
 			List<Integer> ints = new ArrayList<>();
-			for(VendorMake vm : vendorMakes) {
+			for (VendorMake vm : vendorMakes) {
 				ints.add(vm.getMakeId());
 			}
 			Response r = this.postSecuredRequest(AppConstants.OTHER_ACTIVE_MAKES, ints, authHeader);
-			if(r.getStatus() == 200) {
+			if (r.getStatus() == 200) {
 				String object = r.readEntity(String.class);
 				return Response.status(200).entity(object).build();
-			}
-			else {
+			} else {
 				return Response.status(200).entity(new ArrayList<>()).build();
 			}
 		} catch (Exception ex) {
@@ -419,14 +487,14 @@ public class VendorService {
 	public Response getSelectedVendros(@PathParam(value = "param") int makeId) {
 		try {
 			// two top vendor with highest score in the past 45 days
-			List<Vendor> vlist = getTopVendors(makeId, 45, 2);//two best vendors
+			List<Vendor> vlist = getTopVendors(makeId, 45, 2);// two best vendors
 			// vendor with least orders
 			int vids[] = new int[vlist.size()];
-			for(int i = 0; i < vids.length; i++) {
+			for (int i = 0; i < vids.length; i++) {
 				vids[i] = vlist.get(i).getId();
 			}
 			Vendor v = getLeastVendor(makeId, 45, vids);
-			if(null != v){
+			if (null != v) {
 				vlist.add(v);
 			}
 			return Response.status(200).entity(vlist).build();
@@ -434,7 +502,7 @@ public class VendorService {
 			return Response.status(500).build();
 		}
 	}
-	
+
 	@SecuredUser
 	@GET
 	@Path("selected-vendor-ids/{param}")
@@ -442,18 +510,18 @@ public class VendorService {
 	public Response getSelectedVendroIds(@PathParam(value = "param") int makeId) {
 		try {
 			// two top vendor with highest score in the past 45 days
-			List<Vendor> vlist = getTopVendors(makeId, 45, 2);//two best vendors
+			List<Vendor> vlist = getTopVendors(makeId, 45, 2);// two best vendors
 			// vendor with least orders
 			int vids[] = new int[vlist.size()];
-			for(int i = 0; i < vids.length; i++) {
+			for (int i = 0; i < vids.length; i++) {
 				vids[i] = vlist.get(i).getId();
 			}
 			Vendor v = getLeastVendor(makeId, 45, vids);
-			if(null != v){
+			if (null != v) {
 				vlist.add(v);
 			}
 			List<Integer> integerList = new ArrayList<>();
-			for(Vendor vendor : vlist) {
+			for (Vendor vendor : vlist) {
 				integerList.add(vendor.getId());
 			}
 			return Response.status(200).entity(integerList).build();
@@ -461,71 +529,60 @@ public class VendorService {
 			return Response.status(500).build();
 		}
 	}
-	
-	
-	//just get randomly another vendor not actually with least oreders
+
+	// just get randomly another vendor not actually with least oreders
 	private Vendor getLeastVendor(int makeid, int days, int[] vids) {
 		String conds = "";
-		for(int v : vids) {
+		for (int v : vids) {
 			conds = conds + "," + v;
 		}
-		String sql = "select * from vnd_vendor" + 
-				" where status = 'A'" + 
-				" and id in (" + 
-				" select vendor_id from vnd_vendor_make" + 
-				" where make_id = " + makeid +
-				")" + 
-				" and id not in (0" + conds + ")" + 
-				" order by random() limit 1";
+		String sql = "select * from vnd_vendor" + " where status = 'A'" + " and id in ("
+				+ " select vendor_id from vnd_vendor_make" + " where make_id = " + makeid + ")" + " and id not in (0"
+				+ conds + ")" + " order by random() limit 1";
 		List<Vendor> leastVendors = dao.getNative(Vendor.class, sql);
-		if(null == leastVendors|| leastVendors.isEmpty())
+		if (null == leastVendors || leastVendors.isEmpty())
 			return null;
-		else{
+		else {
 			return leastVendors.get(0);
 		}
 	}
-
-
 
 	private List<Vendor> getTopVendors(int makeid, int days, int limit) {
 		// get top two
 		String sql = "select * from vnd_vendor where status = 'A'" + " and id in ( "
 				+ " select z.vendor_id from ( select vendor_id, sum(score) total from vnd_score"
 				+ " where score_date > current_date - " + days + " and make_id = " + makeid
-				+ " and vendor_id in (select vendor_id from vnd_vendor_make"
-				+ " where make_id = "+makeid+")"
-				+ " group by vendor_id"
-				+ " order by total desc , random() limit " + limit + ") z )";
+				+ " and vendor_id in (select vendor_id from vnd_vendor_make" + " where make_id = " + makeid + ")"
+				+ " group by vendor_id" + " order by total desc , random() limit " + limit + ") z )";
 		List<Vendor> topVendors = dao.getNative(Vendor.class, sql);
 		return topVendors;
 	}
-	
+
 	@SecuredUser
 	@DELETE
 	@Path("vendor-join/{param}")
 	@Consumes(MediaType.APPLICATION_JSON)
-	public Response archiveVendorJoin(@PathParam(value="param") int vjrId) {
+	public Response archiveVendorJoin(@PathParam(value = "param") int vjrId) {
 		try {
 			VendorJoinRequest vjr = dao.find(VendorJoinRequest.class, vjrId);
 			vjr.setArchived(true);
 			dao.update(vjr);
 			return Response.status(201).build();
-		}catch(Exception ex) {
+		} catch (Exception ex) {
 			return Response.status(500).build();
 		}
 	}
-	
+
 	@SecuredUser
 	@GET
 	@Path("active-vendor-join-requests")
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response getActiveVendorJoinRequests() {
 		try {
-			String jpql= "select b from VendorJoinRequest b where b.archived = :value0 order by created desc";
+			String jpql = "select b from VendorJoinRequest b where b.archived = :value0 order by created desc";
 			List<VendorJoinRequest> vjrs = dao.getJPQLParams(VendorJoinRequest.class, jpql, false);
 			return Response.status(200).entity(vjrs).build();
-		}
-		catch(Exception ex) {
+		} catch (Exception ex) {
 			return Response.status(500).build();
 		}
 	}
@@ -540,7 +597,7 @@ public class VendorService {
 			vjr.setCreated(new Date());
 			dao.persist(vjr);
 			return Response.status(200).build();
-		}catch(Exception ex) {
+		} catch (Exception ex) {
 			return Response.status(500).build();
 		}
 	}
@@ -553,9 +610,9 @@ public class VendorService {
 	public Response matchToken(AccessMap usermap) {
 		try {
 			WebApp webApp = getWebAppFromSecret(usermap.getAppSecret());
-			List<AccessToken> l = dao.getFourConditionsAndDateBefore(AccessToken.class, "userId",
-					"webApp.appCode", "status", "token", "expire", Integer.parseInt(usermap.getUsername()),
-					webApp.getAppCode(), 'A', usermap.getCode(), new Date());
+			List<AccessToken> l = dao.getFourConditionsAndDateBefore(AccessToken.class, "userId", "webApp.appCode",
+					"status", "token", "expire", Integer.parseInt(usermap.getUsername()), webApp.getAppCode(), 'A',
+					usermap.getCode(), new Date());
 			if (!l.isEmpty()) {
 				return Response.status(200).build();
 			} else {
@@ -577,11 +634,11 @@ public class VendorService {
 		dao.persist(accessToken);
 		return accessToken.getToken();
 	}
-	
+
 	private void deactivateOldTokens(VendorUser vendorUser) {
 		List<AccessToken> tokens = dao.getTwoConditions(AccessToken.class, "userId", "status", vendorUser.getId(), 'A');
 		for (AccessToken t : tokens) {
-			t.setStatus('K');//kill old token
+			t.setStatus('K');// kill old token
 			dao.update(t);
 		}
 	}
@@ -595,8 +652,6 @@ public class VendorService {
 		}
 		return webApp;
 	}
-	
-	
 
 	// qualified
 	public <T> Response postSecuredRequest(String link, T t, String authHeader) {

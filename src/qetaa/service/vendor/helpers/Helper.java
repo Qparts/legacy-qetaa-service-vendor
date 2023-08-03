@@ -11,8 +11,8 @@ import java.util.Random;
 public class Helper {
 	
 	
-	private static String SALTCHARS = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxuz1234567890";
-	
+	private final static String SALTCHARS = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxuz1234567890";
+	private final static String ACTIVATION_LINK = "http://localhost:8081/qvm/activation?code=";
 	
 	public static String getRandomSaltString(int length){
 		StringBuilder salt = new StringBuilder();
@@ -68,6 +68,75 @@ public class Helper {
 	
 	public static Date addSeconds(Date original, int seconds) {
 		return new Date(original.getTime() + (1000L * seconds));
+	}
+	
+	public static String prepareHtmlActivationEmail(String activationCode, String companyName, int companyId) {
+		String activationLink = ACTIVATION_LINK+activationCode + "&seq=" + companyId;
+		String html = "<div align='cetnter' style='padding:12px'>" + 
+				"        <table width='100%' border='0' cellpadding='0' cellspacing='0' style='font-family:helvetica'>" + 
+				"            <tr>" + 
+				"                <td>" + 
+				"                    <table class='content' style='background-color:#f3f3f3' align='center' cellpadding='0' cellspacing='0' border='0'>" + 
+				"                        <tr>" + 
+				"                            <td>" + 
+				"                                <div style='background-color:#555; color:white;padding:12px'>" + 
+				"									QVM Account Activation" + 
+				"								</div>" + 
+				"                            </td>" + 
+				"                        </tr>" + 
+				"						<tr>" + 
+				"                            <td>" + 
+				"                                <div style='padding:12px'>" + 
+				"									Your company "+companyName+" has been created!" + 
+				"								</div>" + 
+				"                            </td>" + 
+				"                        </tr>" + 
+				"						<tr>" + 
+				"                            <td>" + 
+				"                                <div style='padding:12px'>" + 
+				"									Please activate your account by clicking on the link below" + 
+				"								</div>" + 
+				"                            </td>" + 
+				"                        </tr>" + 
+				"						<tr>" + 
+				"                            <td>" + 
+				"                                <div style='padding:12px' align='center'>" + 
+				"									<a href='"+activationLink+"'>" + 
+				"										<button  type='button' style='background-color:#ee4036; color:white;border:none;padding:12px'>Click here to activate your account</button>" + 
+				"									</a>" + 
+				"									<br/>" + 
+				"									<br/>" + 
+				"								</div>" + 
+				"                            </td>" + 
+				"                        </tr>" + 
+				"						<tr>" + 
+				"                            <td>" + 
+				"                                <div style='padding:12px'>" + 
+				"									Or copy and paste this link in your browser" + 
+				"									<br/>" + 
+				"									<a href='"+activationLink+"'>" + 
+														activationLink +
+				"									</a>" + 
+				"									<br/>" + 
+				"									<br/>" + 
+				"								</div>" + 
+				"                            </td>" + 
+				"                        </tr>" + 
+				"						<tr>" + 
+				"                            <td>" + 
+				"                                <div style='padding:12px'>" + 
+				"									Welcome to QVM!" + 
+				"									<br/>" + 
+				"									<br/>" + 
+				"								</div>" + 
+				"                            </td>" + 
+				"                        </tr>" + 
+				"                    </table>" + 
+				"                </td>" + 
+				"            </tr>" + 
+				"        </table>" + 
+				"		</div>";
+		return html;
 	}
 
 }
