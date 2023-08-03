@@ -51,6 +51,12 @@ public class AccessToken implements Serializable{
 		this.userId = userId;
 		this.created = created;
 	}
+	
+	public AccessToken(int userId, Date created, WebApp webApp) {
+		this.userId = userId;
+		this.created = created;
+		this.webApp = webApp;
+	}
 
 	public AccessToken() {
 
